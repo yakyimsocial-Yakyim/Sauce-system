@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yakyim Sauce Ops (Live from Google Sheets)</title>
+<style>
+:root{
+  --ink:#20302c; --paper:#faf7f0; --panel:#ffffff;
+  --teal:#155e56; --teal-dk:#0d403a; --teal-lt:#e6f0ee;
+  --amber:#c8791a; --amber-lt:#fbeedd;
+  --red:#b3402f; --red-lt:#fbe7e2;
+  --line:#e4ded0; --muted:#7b7568;
+  --sidebar:#122a26;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:'Segoe UI','Noto Sans Thai',Tahoma,sans-serif;background:var(--paper);color:var(--ink);font-size:14px;line-height:1.5;}
+#root{display:flex; min-height:100vh;}
+.sidebar{width:220px;background:var(--sidebar);color:#eef5f3;flex-shrink:0;padding:20px 0;display:flex;flex-direction:column;}
+.brand{padding:0 20px 18px 20px;border-bottom:1px solid #24443e;}
+.brand-title{font-weight:800;font-size:16px;}
+.brand-sub{font-size:11px;color:#9fc4bd;margin-top:2px;}
+.nav{margin-top:14px;display:flex;flex-direction:column;gap:2px;padding:0 10px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#c9ddd8;cursor:pointer;font-size:13.5px;font-weight:500;border:none;background:none;text-align:left;width:100%;}
+.nav-item:hover{background:#1b3934;}
+.nav-item.active{background:var(--teal);color:#fff;font-weight:700;}
+.nav-icon{font-size:16px;width:20px;text-align:center;}
+.sidebar-foot{margin-top:auto;padding:14px 20px;font-size:10.5px;color:#6f948c;border-top:1px solid #24443e;}
+.main{flex:1;min-width:0;padding:26px 34px;max-width:1280px;}
+.pagehead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+.pagehead h1{font-size:21px;margin:0;font-weight:800;color:var(--teal-dk);}
+.pagehead .sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px;}
+.card h2{font-size:14px;margin:0 0 12px 0;font-weight:700;color:var(--teal-dk);}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:20px;}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--teal);}
+.kpi.warn::before{background:var(--amber);}
+.kpi.bad::before{background:var(--red);}
+.kpi-label{font-size:11.5px;color:var(--muted);font-weight:600;}
+.kpi-value{font-size:26px;font-weight:800;margin-top:4px;}
+.kpi-unit{font-size:11px;color:var(--muted);margin-left:4px;font-weight:500;}
+table{width:100%;border-collapse:collapse;font-size:12.8px;}
+thead th{background:var(--teal-lt);color:var(--teal-dk);text-align:left;padding:8px 10px;font-weight:700;font-size:11.5px;text-transform:uppercase;border-bottom:2px solid var(--teal);position:sticky;top:0;}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+tbody tr:hover{background:#faf5ea;}
+.tablewrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px;}
+.num{text-align:right;font-family:'Consolas','Courier New',monospace;}
+.code{font-family:'Consolas','Courier New',monospace;color:var(--teal-dk);font-weight:600;}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;}
+.badge.ok{background:var(--teal-lt);color:var(--teal-dk);}
+.badge.warn{background:var(--amber-lt);color:var(--amber);}
+.badge.bad{background:var(--red-lt);color:var(--red);}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;}
+.btn-primary{background:var(--teal);color:#fff;}
+.btn-primary:hover{background:var(--teal-dk);}
+.btn-ghost{background:#fff;color:var(--teal-dk);border:1px solid var(--line);}
+.btn-ghost:hover{background:var(--teal-lt);}
+.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line);}
+.tab-btn{padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab-btn.active{color:var(--teal-dk);border-bottom-color:var(--teal);}
+.pill-flag{background:var(--amber-lt);color:var(--amber);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;}
+.empty{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty .big{font-size:34px;margin-bottom:8px;}
+.banner{background:#fffaf0;border:1px solid #e8c98a;border-radius:10px;padding:12px 16px;font-size:12.5px;color:#7a5a1e;margin-bottom:18px;}
+.banner.err{background:var(--red-lt);border-color:#e0a598;color:var(--red);}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:#cfc8b4;border-radius:6px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ============================================================
+// CONFIG — put your Google Sheet ID here before publishing
+// ============================================================
+// 1. Open your Google Sheet.
+// 2. Share > "Anyone with the link" > Viewer (required so this page can read it).
+// 3. Copy the ID from the URL:  https://docs.google.com/spreadsheets/d/  >>THIS PART<<  /edit
+// 4. Paste it below.
+const SHEET_ID = "PASTE_YOUR_GOOGLE_SHEET_ID_HERE";
+
+// Tab names must match exactly what's in the workbook
+const TABS = ["RawMaterials","Sauces","BOM","SKU_Ingredients","SKU_Packaging","SKU_Labor","SKU_Overhead","SKU_Portions","Orders","OrderLines","Settings"];
+
+function gvizUrl(sheetName){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+}
+
+// Parses the Google Visualization API response (JSON wrapped in a JS callback)
+async function fetchSheet(sheetName){
+  const res = await fetch(gvizUrl(sheetName));
+  if(!res.ok) throw new Error(`Could not load tab "${sheetName}" (HTTP ${res.status})`);
+  const text = await res.text();
+  const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+  if(!match) throw new Error(`Tab "${sheetName}" did not return valid data — check the tab name and sharing settings.`);
+  const json = JSON.parse(match[1]);
+  if(json.status === 'error'){
+    throw new Error(`Google Sheets error on tab "${sheetName}": ${json.errors?.[0]?.detailed_message || 'unknown error'}`);
+  }
+  const cols = json.table.cols.map(c => c.label || c.id);
+  const rows = json.table.rows.map(r => {
+    const obj = {};
+    r.c.forEach((cell,i)=>{
+      let v = cell ? cell.v : null;
+      obj[cols[i]] = v;
+    });
+    return obj;
+  });
+  return rows;
+}
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  tab: 'dashboard',
+  masterSubTab: 'raw',
+  loading: true,
+  error: null,
+  data: null, // { rawMaterials, sauces, bom, orders, settings }
+};
+
+function setTab(t){ state.tab=t; render(); }
+function setMasterSubTab(t){ state.masterSubTab=t; render(); }
+
+async function loadAll(){
+  state.loading = true; state.error = null; render();
+  try{
+    if(!SHEET_ID || SHEET_ID.indexOf("PASTE_YOUR") === 0){
+      throw new Error('No Google Sheet connected yet. Open this file and set SHEET_ID at the top of the <script> tag.');
+    }
+    const [rawRows, sauceRows, bomRows, ingRows, packRows, laborRows, ohRows, portionRows, orderRows, lineRows, settingRows] = await Promise.all(TABS.map(fetchSheet));
+
+    const rawMaterials = rawRows.map(r => ({
+      code: String(r.code||'').trim(), name: r.name||'', category: r.category||'',
+      unit: r.unit||'g', leadTime: Number(r.leadTime)||0, supplier: r.supplier||'',
+      cost: Number(r.cost)||0, stock: Number(r.stock)||0, safetyStock: Number(r.safetyStock)||0,
+      flagged: r.flagged === true || r.flagged === 'TRUE' || r.flagged === 'true'
+    }));
+
+    const truthy = v => v === true || v === 'TRUE' || v === 'true';
+    const numOrNull = v => (v===''||v===null||v===undefined) ? null : Number(v);
+
+    // costSource: 'new_costing_file' (primary, from SKU_Costing workbook) or 'legacy_bom' (fallback)
+    const sauces = sauceRows.map(r => ({
+      code: String(r.code||'').trim(), name: r.name||'', category: r.category||'',
+      batchSizeKg: Number(r.batchSizeKg)||0,
+      unitType: r.unitType || 'kg',
+      price: numOrNull(r.price),
+      stock: Number(r.stock)||0, safetyStock: Number(r.safetyStock)||0,
+      hasRecipe: truthy(r.hasRecipe),
+      costSource: r.costSource || 'legacy_bom',
+      cogsPerUnit: numOrNull(r.cogsPerUnit),
+      targetMarginPct: numOrNull(r.targetMarginPct),
+      recommendedPrice: numOrNull(r.recommendedPrice),
+      oldPrice: numOrNull(r.oldPrice),
+      skuCode: r.skuCode || '',
+      notes: r.notes || ''
+    }));
+
+    const bom = bomRows.map(r => ({
+      sauceCode: String(r.sauceCode||'').trim(), rmCode: String(r.rmCode||'').trim(),
+      qtyPerBatch: Number(r.qtyPerBatch)||0
+    }));
+
+    const skuIngredients = ingRows.map(r => ({
+      sauceCode: String(r.sauceCode||'').trim(), name: r.name||'', qtyUsed: Number(r.qtyUsed)||0,
+      unit: r.unit||'', qtyKg: Number(r.qtyKg)||0, priceUnit: Number(r.priceUnit)||0,
+      yieldPct: Number(r.yieldPct)||1, cost: Number(r.cost)||0
+    }));
+    const skuPackaging = packRows.map(r => ({
+      sauceCode: String(r.sauceCode||'').trim(), name: r.name||'', qtyUsed: Number(r.qtyUsed)||0,
+      unit: r.unit||'', qtyPcs: Number(r.qtyPcs)||0, pricePc: Number(r.pricePc)||0,
+      yieldPct: Number(r.yieldPct)||1, cost: Number(r.cost)||0
+    }));
+    const skuLabor = laborRows.map(r => ({
+      sauceCode: String(r.sauceCode||'').trim(), role: r.role||'', qtyStaff: Number(r.qtyStaff)||0,
+      wageMonth: Number(r.wageMonth)||0, wageHr: Number(r.wageHr)||0, wageMin: Number(r.wageMin)||0,
+      timeMin: Number(r.timeMin)||0, cost: Number(r.cost)||0
+    }));
+    const skuOverhead = ohRows.map(r => ({
+      sauceCode: String(r.sauceCode||'').trim(), item: r.item||'', cost: Number(r.cost)||0
+    }));
+    const skuPortions = portionRows.map(r => ({
+      sauceCode: String(r.sauceCode||'').trim(), name: r.name||'', sizeG: Number(r.sizeG)||0,
+      costPerPortion: Number(r.costPerPortion)||0
+    }));
+
+    const linesByOrder = {};
+    lineRows.forEach(r=>{
+      const oid = String(r.orderId||'').trim();
+      if(!linesByOrder[oid]) linesByOrder[oid] = [];
+      linesByOrder[oid].push({ sauceCode: String(r.sauceCode||'').trim(), qty: Number(r.qty)||0 });
+    });
+    const orders = orderRows.map(r => ({
+      id: String(r.id||'').trim(), branch: r.branch||'', orderNo: r.orderNo||'',
+      orderDate: fmtDateCell(r.orderDate), deliveryDate: fmtDateCell(r.deliveryDate),
+      orderedBy: r.orderedBy||'', status: (r.status||'pending').toLowerCase(),
+      lines: linesByOrder[String(r.id||'').trim()] || []
+    }));
+
+    const settings = { requiredDate: '', branches: [], staff: [] };
+    settingRows.forEach(r=>{
+      const key = String(r.key||'').trim();
+      const val = r.value;
+      if(key==='requiredDate') settings.requiredDate = fmtDateCell(val) || String(val||'');
+      else if(key==='branch') settings.branches.push(String(val||''));
+      else if(key==='staff') settings.staff.push(String(val||''));
+    });
+
+    state.data = { rawMaterials, sauces, bom, skuIngredients, skuPackaging, skuLabor, skuOverhead, skuPortions, orders, settings };
+    state.loading = false;
+  }catch(e){
+    console.error(e);
+    state.error = e.message || String(e);
+    state.loading = false;
+  }
+  render();
+}
+
+// gviz sometimes returns dates as Date(2026,7,11) strings — convert to ISO
+function fmtDateCell(v){
+  if(v===null || v===undefined || v==='') return '';
+  if(typeof v === 'string' && v.startsWith('Date(')){
+    const nums = v.match(/\d+/g).map(Number);
+    const [y,m,dd] = nums;
+    return `${y}-${String(m+1).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  }
+  return String(v);
+}
+
+// ---------------- Helpers ----------------
+function fmt(n,d){ if(n===null||n===undefined||isNaN(n)) return '-'; return Number(n).toLocaleString('en-US',{minimumFractionDigits:d===undefined?2:d,maximumFractionDigits:d===undefined?2:d}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function addDays(iso,days){ if(!iso) return ''; const d=new Date(iso); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+function rmName(code){ const r=state.data.rawMaterials.find(x=>x.code===code); return r?r.name:code; }
+function isOrderFulfilled(o){ return o.status==='received' || o.status==='delivered'; }
+
+// ---------------- Computations (mirrors the original app's logic) ----------------
+function computeProductionPlan(){
+  const d = state.data;
+  return d.sauces.map(s=>{
+    let totalOrdered = 0;
+    d.orders.filter(o=>!isOrderFulfilled(o)).forEach(o=>o.lines.forEach(l=>{ if(l.sauceCode===s.code) totalOrdered += Number(l.qty||0); }));
+    const netRequired = Math.max(totalOrdered + Number(s.safetyStock||0) - Number(s.stock||0), 0);
+    const batches = s.batchSizeKg>0 ? Math.ceil(netRequired/s.batchSizeKg) : 0;
+    const actualProduction = batches * s.batchSizeKg;
+    return {...s, totalOrdered, netRequired, batches, actualProduction};
+  });
+}
+// Cost per unit (kg, or per set for SC21): new costing file wins when present, otherwise falls back to the legacy BOM calc
+function computeSauceCost(){
+  const d = state.data;
+  return d.sauces.map(s=>{
+    let costPerKg;
+    if(s.costSource === 'new_costing_file' && s.cogsPerUnit !== null && s.cogsPerUnit !== undefined){
+      costPerKg = s.cogsPerUnit;
+    } else {
+      const rows = d.bom.filter(b=>b.sauceCode===s.code);
+      const totalCost = rows.reduce((sum,b)=>{
+        const rm = d.rawMaterials.find(r=>r.code===b.rmCode);
+        return sum + (rm ? Number(b.qtyPerBatch)*Number(rm.cost) : 0);
+      },0);
+      costPerKg = s.batchSizeKg>0 ? totalCost/s.batchSizeKg : 0;
+    }
+    const costPct = (s.price!==null && s.price>0) ? costPerKg/s.price : null;
+    const profit = (s.price!==null) ? s.price - costPerKg : null;
+    return {...s, costPerKg, costPct, profit};
+  });
+}
+function computeMRP(){
+  const d = state.data;
+  const plan = computeProductionPlan();
+  const batchesBySauce = {}; plan.forEach(p=>batchesBySauce[p.code]=p.batches);
+  const reqDate = d.settings.requiredDate;
+  return d.rawMaterials.map(rm=>{
+    const grossReq = d.bom.filter(b=>b.rmCode===rm.code).reduce((sum,b)=>sum+Number(b.qtyPerBatch)*(batchesBySauce[b.sauceCode]||0),0);
+    const netReq = Math.max(grossReq + Number(rm.safetyStock||0) - Number(rm.stock||0), 0);
+    let orderDate = '';
+    if(netReq>0 && reqDate) orderDate = addDays(reqDate, -Number(rm.leadTime||0));
+    const value = netReq * Number(rm.cost||0);
+    return {...rm, grossReq, netReq, orderDate, value};
+  });
+}
+function kpis(){
+  const costed = computeSauceCost();
+  const plan = computeProductionPlan();
+  const mrp = computeMRP();
+  return {
+    lossCount: costed.filter(s=>s.profit!==null && s.profit<0).length,
+    toBuyCount: mrp.filter(r=>r.netReq>0).length,
+    totalProdKg: plan.reduce((s,p)=>s+p.actualProduction,0),
+    totalBuyValue: mrp.reduce((s,r)=>s+r.value,0),
+  };
+}
+function orderRowTotal(order){
+  return order.lines.reduce((sum,l)=>{
+    const s = state.data.sauces.find(x=>x.code===l.sauceCode);
+    return sum + (s&&s.price? s.price*l.qty : 0);
+  },0);
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+const NAV = [
+  {id:'dashboard', icon:'📊', label:'Dashboard'},
+  {id:'orders', icon:'🏪', label:'Orders'},
+  {id:'production', icon:'🏭', label:'Production Plan'},
+  {id:'purchasing', icon:'🛒', label:'Purchasing'},
+  {id:'master', icon:'📋', label:'Master Data'},
+];
+
+function render(){
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="sidebar">
+      <div class="brand">
+        <div class="brand-title">🥘 Yakyim Sauce Ops</div>
+        <div class="brand-sub">Live from Google Sheets</div>
+      </div>
+      <div class="nav">
+        ${NAV.map(n=>`<button class="nav-item ${state.tab===n.id?'active':''}" onclick="setTab('${n.id}')">
+          <span class="nav-icon">${n.icon}</span><span>${n.label}</span>
+        </button>`).join('')}
+      </div>
+      <div class="sidebar-foot">
+        <button class="btn btn-ghost" style="width:100%; margin-bottom:8px;" onclick="loadAll()">🔄 Refresh Data</button>
+        Data is read live from your<br>Google Sheet on every refresh.
+      </div>
+    </div>
+    <div class="main">
+      ${renderPage()}
+    </div>
+  `;
+}
+
+function renderPage(){
+  if(state.loading) return `<div class="empty"><div class="big">⏳</div>Loading data from Google Sheets…</div>`;
+  if(state.error) return `
+    <div class="pagehead"><div><h1>Connection Error</h1></div></div>
+    <div class="banner err">${state.error}</div>
+    <div class="card">
+      <h2>Checklist</h2>
+      <ul style="font-size:13px; line-height:1.9; padding-left:20px;">
+        <li>Did you paste your real Google Sheet ID into <code>SHEET_ID</code> at the top of this file?</li>
+        <li>Is the Sheet shared as "Anyone with the link → Viewer"?</li>
+        <li>Do the tab names exactly match: RawMaterials, Sauces, BOM, SKU_Ingredients, SKU_Packaging, SKU_Labor, SKU_Overhead, SKU_Portions, Orders, OrderLines, Settings?</li>
+      </ul>
+      <button class="btn btn-primary" onclick="loadAll()">Try Again</button>
+    </div>
+  `;
+  if(state.tab==='dashboard') return pageDashboard();
+  if(state.tab==='orders') return pageOrders();
+  if(state.tab==='production') return pageProduction();
+  if(state.tab==='purchasing') return pagePurchasing();
+  if(state.tab==='master') return pageMaster();
+  return '';
+}
+
+function pageDashboard(){
+  const k = kpis();
+  const costed = computeSauceCost().filter(s=>s.profit!==null && s.profit<0);
+  const mrp = computeMRP().filter(r=>r.netReq>0).sort((a,b)=>(a.orderDate||'9999').localeCompare(b.orderDate||'9999'));
+  return `
+    <div class="pagehead"><div><h1>Dashboard</h1><div class="sub">Today's overview — ${todayISO()}</div></div></div>
+    <div class="kpi-grid">
+      <div class="kpi ${k.lossCount>0?'bad':''}"><div class="kpi-label">Sauces Priced Below Cost</div><div class="kpi-value">${k.lossCount}<span class="kpi-unit">items</span></div></div>
+      <div class="kpi ${k.toBuyCount>0?'warn':''}"><div class="kpi-label">Materials to Order This Round</div><div class="kpi-value">${k.toBuyCount}<span class="kpi-unit">items</span></div></div>
+      <div class="kpi"><div class="kpi-label">Total Production Needed</div><div class="kpi-value">${fmt(k.totalProdKg,1)}<span class="kpi-unit">kg</span></div></div>
+      <div class="kpi"><div class="kpi-label">Purchase Value Needed</div><div class="kpi-value">${fmt(k.totalBuyValue,0)}<span class="kpi-unit">RM</span></div></div>
+    </div>
+    <div class="card">
+      <h2>⚠️ Sauces to Review Pricing/Recipe (Cost &gt; Price)</h2>
+      ${costed.length===0? `<div class="empty" style="padding:14px;">No loss-making items right now 🎉</div>` : `
+      <div class="tablewrap" style="max-height:220px;"><table><thead><tr><th>Code</th><th>Sauce Name</th><th class="num">Cost/kg</th><th class="num">Price/kg</th><th class="num">Loss/kg</th></tr></thead>
+      <tbody>${costed.map(s=>`<tr><td class="code">${s.code}</td><td>${s.name}</td><td class="num">${fmt(s.costPerKg)}</td><td class="num">${fmt(s.price)}</td><td class="num" style="color:var(--red);font-weight:700;">${fmt(s.profit)}</td></tr>`).join('')}</tbody></table></div>`}
+    </div>
+    <div class="card">
+      <h2>🛒 Purchase Queue by Order Date</h2>
+      ${mrp.length===0? `<div class="empty" style="padding:14px;">Nothing needs ordering right now</div>` : `
+      <div class="tablewrap" style="max-height:260px;"><table><thead><tr><th>Order By</th><th>Code</th><th>Material Name</th><th class="num">Order Qty</th><th>Unit</th><th class="num">Amount</th></tr></thead>
+      <tbody>${mrp.slice(0,10).map(r=>`<tr><td>${r.orderDate||'-'}</td><td class="code">${r.code}</td><td>${r.name}</td><td class="num">${fmt(r.netReq,1)}</td><td>${r.unit}</td><td class="num">${fmt(r.value)}</td></tr>`).join('')}</tbody></table></div>`}
+      <div style="margin-top:12px;"><button class="btn btn-ghost" onclick="setTab('purchasing')">View full purchase plan →</button></div>
+    </div>
+  `;
+}
+
+function pageOrders(){
+  const d = state.data;
+  return `
+    <div class="pagehead"><div><h1>Branch Orders</h1><div class="sub">All branch orders combined (unit: kg) — pulled from the Orders + OrderLines tabs</div></div></div>
+    <div class="card">
+      <h2>Order History (${d.orders.length})</h2>
+      ${d.orders.length===0? `<div class="empty"><div class="big">🧾</div>No orders yet</div>` : `
+      <div class="tablewrap"><table>
+        <thead><tr><th>Branch</th><th>Order No.</th><th>Order Date</th><th>Delivery Date</th><th>Ordered By</th><th>Items (kg)</th><th class="num">Amount</th><th>Status</th></tr></thead>
+        <tbody>${d.orders.map(o=>`
+          <tr>
+            <td>${o.branch}</td><td class="code">${o.orderNo}</td><td>${o.orderDate}</td><td>${o.deliveryDate}</td><td>${o.orderedBy||'-'}</td>
+            <td>${o.lines.map(l=>`${l.sauceCode} ×${fmt(l.qty,1)} kg`).join(', ')}</td>
+            <td class="num">${fmt(orderRowTotal(o))}</td>
+            <td>${isOrderFulfilled(o)? `<span class="badge ok">Received</span>`:`<span class="badge warn">Pending</span>`}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>`}
+    </div>
+    <div class="banner">To add or edit orders, edit the <b>Orders</b> and <b>OrderLines</b> tabs directly in Google Sheets, then click "🔄 Refresh Data" in the sidebar.</div>
+  `;
+}
+
+function pageProduction(){
+  const plan = computeProductionPlan();
+  const reqDate = state.data.settings.requiredDate;
+  return `
+    <div class="pagehead"><div><h1>Production Plan</h1><div class="sub">Combines pending branch orders (received orders excluded), subtracts stock on hand, calculates batches to produce (unit: kg)</div></div></div>
+    <div class="banner">Required Completion Date (from Settings tab): <b>${reqDate||'not set'}</b></div>
+    <div class="card"><div class="tablewrap"><table>
+      <thead><tr><th>Code</th><th>Sauce Name</th><th class="num">Batch (kg)</th><th class="num">Total Ordered</th><th class="num">Stock</th><th class="num">Safety</th><th class="num">Net to Produce</th><th class="num">Batches</th><th class="num">Output (kg)</th></tr></thead>
+      <tbody>${plan.map(p=>`
+        <tr>
+          <td class="code">${p.code}</td><td>${p.name}${!p.hasRecipe?` <span class="pill-flag">No recipe</span>`:''}</td>
+          <td class="num">${fmt(p.batchSizeKg,3)}</td><td class="num">${fmt(p.totalOrdered,1)}</td>
+          <td class="num">${fmt(p.stock,1)}</td><td class="num">${fmt(p.safetyStock,1)}</td>
+          <td class="num">${fmt(p.netRequired,1)}</td>
+          <td class="num" style="font-weight:700;">${p.batches>0?`<span class="badge warn">${p.batches}</span>`:p.batches}</td>
+          <td class="num">${fmt(p.actualProduction,1)}</td>
+        </tr>`).join('')}</tbody>
+    </table></div></div>
+  `;
+}
+
+function pagePurchasing(){
+  const mrp = computeMRP().sort((a,b)=>{
+    if(a.netReq>0 && b.netReq<=0) return -1;
+    if(b.netReq>0 && a.netReq<=0) return 1;
+    return (a.orderDate||'9999').localeCompare(b.orderDate||'9999');
+  });
+  return `
+    <div class="pagehead"><div><h1>Purchase Plan (MRP)</h1><div class="sub">Batches to produce × recipe, minus stock on hand → order quantity and order date</div></div></div>
+    <div class="card"><div class="tablewrap"><table>
+      <thead><tr><th>Code</th><th>Material Name</th><th>Unit</th><th class="num">Lead Time</th><th class="num">Gross Req</th><th class="num">On Hand</th><th class="num">Safety</th><th class="num">Net Req</th><th>Order By</th><th class="num">Amount</th></tr></thead>
+      <tbody>${mrp.map(r=>`
+        <tr style="${r.netReq>0?'background:#fffaf0;':''}">
+          <td class="code">${r.code}</td><td>${r.name}${r.flagged?` <span class="pill-flag">Check price</span>`:''}</td>
+          <td>${r.unit}</td><td class="num">${r.leadTime}</td><td class="num">${fmt(r.grossReq,1)}</td>
+          <td class="num">${fmt(r.stock,1)}</td><td class="num">${fmt(r.safetyStock,1)}</td>
+          <td class="num" style="font-weight:700;">${r.netReq>0?`<span class="badge warn">${fmt(r.netReq,1)}</span>`:'-'}</td>
+          <td>${r.orderDate||'-'}</td><td class="num">${fmt(r.value)}</td>
+        </tr>`).join('')}</tbody>
+    </table></div></div>
+  `;
+}
+
+function pageMasterRaw(){
+  const rows = state.data.rawMaterials;
+  return `<div class="tablewrap" style="max-height:560px;"><table>
+    <thead><tr><th>Code</th><th>Material Name</th><th>Category</th><th>Unit</th><th class="num">Lead Time</th><th>Supplier</th><th class="num">Cost/Unit</th><th class="num">Stock</th><th class="num">Safety Stock</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr style="${r.flagged?'background:#fff8ef;':''}">
+      <td class="code">${r.code}</td><td>${r.name}${r.flagged?` <span class="pill-flag">Price mismatch</span>`:''}</td>
+      <td>${r.category}</td><td>${r.unit}</td><td class="num">${r.leadTime}</td><td>${r.supplier||'-'}</td>
+      <td class="num">${fmt(r.cost,5)}</td><td class="num">${fmt(r.stock,1)}</td><td class="num">${fmt(r.safetyStock,1)}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+function pageMasterSauce(){
+  const rows = computeSauceCost();
+  return `<div class="tablewrap" style="max-height:560px;"><table>
+    <thead><tr><th>Code</th><th>Sauce Name</th><th>Source</th><th class="num">Batch</th><th class="num">Price</th><th class="num">Stock</th><th class="num">Safety</th><th class="num">Cost/Unit</th><th class="num">Cost %</th><th class="num">Profit/Unit</th><th class="num">Recommended Price</th></tr></thead>
+    <tbody>${rows.map(s=>`<tr style="${s.profit!==null&&s.profit<0?'background:#fdecec;':''}">
+      <td class="code">${s.code}</td><td>${s.name}${!s.hasRecipe?` <span class="pill-flag">No recipe</span>`:''}</td>
+      <td>${s.costSource==='new_costing_file'?`<span class="badge ok">New file</span>`:`<span class="badge warn">Legacy</span>`}</td>
+      <td class="num">${fmt(s.batchSizeKg,3)} ${s.unitType==='set'?'set':'kg'}</td><td class="num">${fmt(s.price)}</td>
+      <td class="num">${fmt(s.stock,1)}</td><td class="num">${fmt(s.safetyStock,1)}</td>
+      <td class="num">${fmt(s.costPerKg)}</td><td class="num">${s.costPct!==null?(s.costPct*100).toFixed(0)+'%':'-'}</td>
+      <td class="num" style="font-weight:700; color:${s.profit!==null&&s.profit<0?'var(--red)':'inherit'};">${s.profit!==null?fmt(s.profit):'-'}</td>
+      <td class="num">${s.recommendedPrice!==null?fmt(s.recommendedPrice):'-'}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+function pageMasterBOM(){
+  const sauces = state.data.sauces;
+  const d = state.data;
+  return sauces.map(s=>{
+    if(s.costSource === 'new_costing_file'){
+      // detailed costing from the new SKU Costing & Pricing file (primary source)
+      const ing = d.skuIngredients.filter(x=>x.sauceCode===s.code);
+      const pack = d.skuPackaging.filter(x=>x.sauceCode===s.code);
+      const labor = d.skuLabor.filter(x=>x.sauceCode===s.code);
+      const oh = d.skuOverhead.filter(x=>x.sauceCode===s.code);
+      const portions = d.skuPortions.filter(x=>x.sauceCode===s.code);
+      const ingSub = ing.reduce((sum,i)=>sum+i.cost,0);
+      const packSub = pack.reduce((sum,p)=>sum+p.cost,0);
+      const laborSub = labor.reduce((sum,l)=>sum+l.cost,0);
+      const ohSub = oh.reduce((sum,o)=>sum+o.cost,0);
+      return `<div class="card">
+        <h2>${s.code} — ${s.name} <span class="badge ok" style="margin-left:6px;">From SKU Costing file</span></h2>
+        ${s.notes? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${s.notes}</div>`:''}
+        <table style="margin-bottom:10px;"><thead><tr><th>Ingredient</th><th class="num">Qty Used</th><th>Unit</th><th class="num">Price/Unit</th><th class="num">Yield %</th><th class="num">Cost (RM)</th></tr></thead>
+        <tbody>${ing.map(i=>`<tr><td>${i.name}</td><td class="num">${fmt(i.qtyUsed,2)}</td><td>${i.unit}</td><td class="num">${fmt(i.priceUnit,2)}</td><td class="num">${(i.yieldPct*100).toFixed(0)}%</td><td class="num">${fmt(i.cost)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td colspan="5">Raw Material Subtotal</td><td class="num">${fmt(ingSub)}</td></tr></tbody></table>
+        ${pack.length? `<table style="margin-bottom:10px;"><thead><tr><th>Packaging</th><th class="num">Qty</th><th class="num">Cost (RM)</th></tr></thead>
+        <tbody>${pack.map(p=>`<tr><td>${p.name}</td><td class="num">${fmt(p.qtyUsed,2)}</td><td class="num">${fmt(p.cost)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td colspan="2">Packaging Subtotal</td><td class="num">${fmt(packSub)}</td></tr></tbody></table>`:''}
+        ${labor.length? `<table style="margin-bottom:10px;"><thead><tr><th>Labor Role</th><th class="num">Time (min)</th><th class="num">Cost (RM)</th></tr></thead>
+        <tbody>${labor.map(l=>`<tr><td>${l.role}</td><td class="num">${fmt(l.timeMin,0)}</td><td class="num">${fmt(l.cost)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td colspan="2">Labor Subtotal</td><td class="num">${fmt(laborSub)}</td></tr></tbody></table>`:''}
+        ${oh.length? `<table style="margin-bottom:10px;"><thead><tr><th>Overhead</th><th class="num">Cost (RM)</th></tr></thead>
+        <tbody>${oh.map(o=>`<tr><td>${o.item}</td><td class="num">${fmt(o.cost)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td>Overhead Subtotal</td><td class="num">${fmt(ohSub)}</td></tr></tbody></table>`:''}
+        ${portions.length? `<div style="font-size:12.5px;"><b>Portions:</b> ${portions.map(p=>`${p.name} — ${fmt(p.costPerPortion)} RM/portion`).join(' · ')}</div>`:''}
+        <div style="margin-top:10px; font-weight:700; color:var(--teal-dk);">
+          COGS ${s.unitType==='set'?'per set':'per kg'}: ${fmt(s.cogsPerUnit)} RM
+          ${s.batchSizeKg? ` &nbsp;·&nbsp; Batch: ${fmt(s.batchSizeKg,3)} ${s.unitType==='set'?'set(s)':'kg'}` : ''}
+        </div>
+      </div>`;
+    }
+    // legacy BOM fallback (no new-file data for this sauce)
+    const rows = d.bom.filter(b=>b.sauceCode===s.code);
+    return `<div class="card">
+      <h2>${s.code} — ${s.name} ${!s.hasRecipe?`<span class="pill-flag">No recipe yet</span>`:''} <span class="badge warn" style="margin-left:6px;">Legacy recipe</span></h2>
+      ${rows.length===0? `<div style="color:var(--muted);font-size:12.5px;">No recipe data in the BOM tab yet.</div>` : `
+      <table><thead><tr><th>Material Code</th><th>Material Name</th><th class="num">Qty/Batch (g)</th></tr></thead>
+      <tbody>${rows.map(b=>`<tr><td class="code">${b.rmCode}</td><td>${rmName(b.rmCode)}</td><td class="num">${fmt(b.qtyPerBatch,2)}</td></tr>`).join('')}</tbody></table>`}
+    </div>`;
+  }).join('');
+}
+function pageMaster(){
+  const sub = state.masterSubTab;
+  return `
+    <div class="pagehead"><div><h1>Master Data</h1><div class="sub">Raw materials, finished sauces, and recipes — read live from Google Sheets</div></div></div>
+    <div class="banner"><span class="badge ok">New file</span> = cost/price/recipe comes from the SKU Costing &amp; Pricing workbook (primary source). <span class="badge warn">Legacy</span> = that item isn't in the new file yet, so it still uses the original BOM-based recipe as a fallback.</div>
+    <div class="tabs">
+      <button class="tab-btn ${sub==='raw'?'active':''}" onclick="setMasterSubTab('raw')">🧂 Raw Materials</button>
+      <button class="tab-btn ${sub==='sauce'?'active':''}" onclick="setMasterSubTab('sauce')">🍯 Finished Sauces</button>
+      <button class="tab-btn ${sub==='bom'?'active':''}" onclick="setMasterSubTab('bom')">📋 Recipes (BOM)</button>
+    </div>
+    ${sub==='raw'? pageMasterRaw() : sub==='sauce'? pageMasterSauce() : pageMasterBOM()}
+  `;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+loadAll();
+</script>
+</body>
+</html>
