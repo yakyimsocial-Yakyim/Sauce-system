@@ -57,6 +57,8 @@ tbody tr:hover{background:#faf5ea;}
 .btn-primary:hover{background:var(--teal-dk);}
 .btn-ghost{background:#fff;color:var(--teal-dk);border:1px solid var(--line);}
 .btn-ghost:hover{background:var(--teal-lt);}
+.btn-danger{background:var(--red-lt);color:var(--red);}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
 .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line);}
 .tab-btn{padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;}
 .tab-btn.active{color:var(--teal-dk);border-bottom-color:var(--teal);}
@@ -67,6 +69,22 @@ tbody tr:hover{background:#faf5ea;}
 .banner.err{background:var(--red-lt);border-color:#e0a598;color:var(--red);}
 ::-webkit-scrollbar{width:9px;height:9px;}
 ::-webkit-scrollbar-thumb{background:#cfc8b4;border-radius:6px;}
+
+.orderline{display:grid;grid-template-columns:2fr 100px 32px;gap:8px;margin-bottom:8px;align-items:center;}
+.iconbtn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--red);width:28px;}
+input[type=text],input[type=number],input[type=date],select{
+  font-family:inherit;font-size:13px;padding:7px 9px;border:1px solid #cfc8b4;border-radius:7px;background:#fff;color:var(--ink);width:100%;
+}
+input:focus,select:focus{outline:2px solid var(--teal);outline-offset:1px;}
+label.f{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:4px;}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;}
+#printArea{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  #printArea, #printArea *{visibility:visible;}
+  #printArea{display:block;position:absolute;left:0;top:0;width:100%;padding:16mm;}
+  .no-print{display:none !important;}
+}
 </style>
 </head>
 <body>
@@ -81,6 +99,11 @@ tbody tr:hover{background:#faf5ea;}
 // 3. Copy the ID from the URL:  https://docs.google.com/spreadsheets/d/  >>THIS PART<<  /edit
 // 4. Paste it below.
 const SHEET_ID = "1hqMk2F5LF6u25CUhGg7GKkoRXIWjuTz_";
+
+// 5. To allow saving/editing orders FROM the website (writing back into the Sheet), deploy the
+//    provided Code.gs as a Google Apps Script Web App and paste its URL below. Leave it blank
+//    to run in read-only mode (orders can only be edited directly in Google Sheets).
+const APPS_SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 // Tab names must match exactly what's in the workbook
 const TABS = ["RawMaterials","Sauces","BOM","SKU_Ingredients","SKU_Packaging","SKU_Labor","SKU_Overhead","SKU_Portions","Orders","OrderLines","Settings"];
@@ -112,6 +135,22 @@ async function fetchSheet(sheetName){
   return rows;
 }
 
+// Calls the Apps Script Web App to write data back into the Sheet.
+// Sent as text/plain (not application/json) on purpose — this keeps it a CORS "simple request"
+// so it works from GitHub Pages without needing any server-side CORS configuration.
+async function callBackend(action, extra){
+  if(!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf("PASTE_YOUR") === 0){
+    throw new Error('Saving requires the Apps Script backend. See README.md → "Apps Script Setup" to enable editing.');
+  }
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...extra })
+  });
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || 'Unknown backend error');
+  return json.result;
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -121,10 +160,27 @@ const state = {
   loading: true,
   error: null,
   data: null, // { rawMaterials, sauces, bom, orders, settings }
+  draftOrder: null,
+  saving: false,
+  toast: null,
+  confirmModal: null,
 };
 
 function setTab(t){ state.tab=t; render(); }
 function setMasterSubTab(t){ state.masterSubTab=t; render(); }
+function showToast(msg, kind){
+  state.toast = {msg, kind: kind||'ok'};
+  render();
+  setTimeout(()=>{ state.toast=null; render(); }, 2600);
+}
+function askConfirm(message, onYes){ state.confirmModal = {message, onYes}; render(); }
+function closeConfirm(){ state.confirmModal = null; render(); }
+async function confirmYes(){
+  const cb = state.confirmModal ? state.confirmModal.onYes : null;
+  state.confirmModal = null;
+  if(cb) await cb();
+  else render();
+}
 
 async function loadAll(){
   state.loading = true; state.error = null; render();
@@ -317,7 +373,7 @@ const NAV = [
 function render(){
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="sidebar">
+    <div class="sidebar no-print">
       <div class="brand">
         <div class="brand-title">🥘 Yakyim Sauce Ops</div>
         <div class="brand-sub">Live from Google Sheets</div>
@@ -333,8 +389,19 @@ function render(){
       </div>
     </div>
     <div class="main">
+      ${state.toast? `<div class="no-print" style="position:fixed;top:18px;right:18px;background:${state.toast.kind==='bad'?'#b3402f':'#155e56'};color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;">${state.toast.msg}</div>` : ''}
       ${renderPage()}
     </div>
+    ${state.confirmModal ? `
+    <div class="no-print" style="position:fixed; inset:0; background:rgba(20,30,28,0.55); display:flex; align-items:center; justify-content:center; z-index:1000;">
+      <div style="background:#fff; border-radius:12px; padding:22px 24px; max-width:360px; box-shadow:0 10px 40px rgba(0,0,0,.3);">
+        <div style="font-size:14px; line-height:1.5; margin-bottom:18px; color:var(--ink);">${state.confirmModal.message}</div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+          <button class="btn" style="background:var(--red); color:#fff;" onclick="confirmYes()">Confirm</button>
+        </div>
+      </div>
+    </div>` : ''}
   `;
 }
 
@@ -349,6 +416,7 @@ function renderPage(){
         <li>Did you paste your real Google Sheet ID into <code>SHEET_ID</code> at the top of this file?</li>
         <li>Is the Sheet shared as "Anyone with the link → Viewer"?</li>
         <li>Do the tab names exactly match: RawMaterials, Sauces, BOM, SKU_Ingredients, SKU_Packaging, SKU_Labor, SKU_Overhead, SKU_Portions, Orders, OrderLines, Settings?</li>
+        <li>To save/edit orders from this page (not just view them), did you deploy <code>Code.gs</code> as an Apps Script Web App and paste its URL into <code>APPS_SCRIPT_URL</code>? See README.md.</li>
       </ul>
       <button class="btn btn-primary" onclick="loadAll()">Try Again</button>
     </div>
@@ -389,26 +457,300 @@ function pageDashboard(){
   `;
 }
 
+// ============================================================
+// ORDERS — create / edit / delete / status, saved back to the Sheet via Apps Script
+// ============================================================
+function newDraftOrder(){
+  const d = state.data;
+  const nextNo = String(d.orders.length + 1).padStart(3,'0');
+  return {
+    editingId: null,
+    branch:'', branchCustom:false, orderNo: nextNo, orderDate: todayISO(), deliveryDate: todayISO(),
+    orderedBy:'', orderedByCustom:false, status:'pending',
+    lines:[{sauceCode: d.sauces[0].code, qty:1}]
+  };
+}
+function openNewOrder(){ state.draftOrder = newDraftOrder(); render(); }
+function openEditOrder(id){
+  const o = state.data.orders.find(x=>x.id===id);
+  if(!o) return;
+  state.draftOrder = {
+    editingId: o.id, branch:o.branch, branchCustom: !knownBranches().includes(o.branch),
+    orderNo:o.orderNo, orderDate:o.orderDate, deliveryDate:o.deliveryDate,
+    orderedBy:o.orderedBy||'', orderedByCustom: !knownStaff().includes(o.orderedBy||''),
+    status: isOrderFulfilled(o) ? 'received' : 'pending',
+    lines: o.lines.map(l=>({sauceCode:l.sauceCode, qty:l.qty}))
+  };
+  render();
+}
+function cancelDraft(){ state.draftOrder = null; render(); }
+function draftField(field, val){ state.draftOrder[field]=val; }
+function onStatusSelect(val){ state.draftOrder.status = val; render(); }
+function onBranchSelect(val){
+  if(val==='__custom__'){ state.draftOrder.branchCustom=true; state.draftOrder.branch=''; }
+  else { state.draftOrder.branchCustom=false; state.draftOrder.branch=val; }
+  render();
+}
+function onStaffSelect(val){
+  if(val==='__custom__'){ state.draftOrder.orderedByCustom=true; state.draftOrder.orderedBy=''; }
+  else { state.draftOrder.orderedByCustom=false; state.draftOrder.orderedBy=val; }
+  render();
+}
+function addDraftLine(){ state.draftOrder.lines.push({sauceCode: state.data.sauces[0].code, qty:1}); render(); }
+function removeDraftLine(i){ state.draftOrder.lines.splice(i,1); render(); }
+function draftLineField(i, field, val){ state.draftOrder.lines[i][field] = val; }
+
+function knownBranches(){
+  const s = state.data.settings;
+  const set = new Set([...(s.branches||[]), ...state.data.orders.map(o=>o.branch)]);
+  return [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+}
+function knownStaff(){
+  const s = state.data.settings;
+  const set = new Set([...(s.staff||[]), ...state.data.orders.map(o=>o.orderedBy).filter(Boolean)]);
+  return [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+}
+
+async function submitOrder(){
+  const dr = state.draftOrder;
+  if(!dr.branch.trim()){ showToast('Please select a branch','bad'); return; }
+  const lines = dr.lines.filter(l=>l.sauceCode && Number(l.qty)>0).map(l=>({sauceCode:l.sauceCode, qty:Number(l.qty)}));
+  if(lines.length===0){ showToast('Please add at least one sauce item (kg)','bad'); return; }
+  const payload = {
+    id: dr.editingId, branch: dr.branch.trim(), orderNo: dr.orderNo, orderDate: dr.orderDate,
+    deliveryDate: dr.deliveryDate, orderedBy: dr.orderedBy.trim(), status: dr.status || 'pending', lines
+  };
+  state.saving = true; render();
+  try{
+    if(dr.editingId) await callBackend('updateOrder', {order: payload});
+    else await callBackend('addOrder', {order: payload});
+    state.draftOrder = null;
+    showToast(dr.editingId? 'Order updated' : 'Order saved');
+    await loadAll();
+  }catch(e){
+    showToast(e.message, 'bad');
+  }
+  state.saving = false; render();
+}
+
+async function markOrderReceived(id){
+  try{ await callBackend('setOrderStatus', {orderId:id, status:'received'}); showToast('Marked as received'); await loadAll(); }
+  catch(e){ showToast(e.message,'bad'); render(); }
+}
+async function markOrderPending(id){
+  try{ await callBackend('setOrderStatus', {orderId:id, status:'pending'}); showToast('Reopened as pending'); await loadAll(); }
+  catch(e){ showToast(e.message,'bad'); render(); }
+}
+async function deleteOrder(id){
+  const o = state.data.orders.find(x=>x.id===id);
+  if(!o) return;
+  askConfirm(`Delete order ${o.orderNo} (${o.branch})? This cannot be undone.`, async ()=>{
+    try{ await callBackend('deleteOrder', {orderId:id}); showToast('Order deleted'); await loadAll(); }
+    catch(e){ showToast(e.message,'bad'); render(); }
+  });
+}
+
+function branchFieldHTML(dr){
+  const known = knownBranches();
+  return `<div><label class="f">Branch</label>
+    <select onchange="onBranchSelect(this.value)">
+      <option value="" ${!dr.branchCustom && !dr.branch?'selected':''}>-- Select branch --</option>
+      ${known.map(b=>`<option value="${b}" ${!dr.branchCustom && b===dr.branch?'selected':''}>${b}</option>`).join('')}
+      <option value="__custom__" ${dr.branchCustom?'selected':''}>+ Type new branch name...</option>
+    </select>
+    ${dr.branchCustom? `<input style="margin-top:6px;" type="text" value="${dr.branch}" oninput="draftField('branch', this.value)" placeholder="Type new branch name">` : ''}
+  </div>`;
+}
+function staffFieldHTML(dr){
+  const known = knownStaff();
+  return `<div><label class="f">Ordered By</label>
+    <select onchange="onStaffSelect(this.value)">
+      <option value="" ${!dr.orderedByCustom && !dr.orderedBy?'selected':''}>-- Select person --</option>
+      ${known.map(x=>`<option value="${x}" ${!dr.orderedByCustom && x===dr.orderedBy?'selected':''}>${x}</option>`).join('')}
+      <option value="__custom__" ${dr.orderedByCustom?'selected':''}>+ Type new name...</option>
+    </select>
+    ${dr.orderedByCustom? `<input style="margin-top:6px;" type="text" value="${dr.orderedBy}" oninput="draftField('orderedBy', this.value)" placeholder="Type new name">` : ''}
+  </div>`;
+}
+
+function orderForm(){
+  const dr = state.draftOrder;
+  const sauces = state.data.sauces;
+  return `<div class="card no-print">
+    <h2>${dr.editingId? '✏️ Edit Order' : '➕ New Order'}</h2>
+    <div class="formgrid">
+      ${branchFieldHTML(dr)}
+      <div><label class="f">Order No.</label><input type="text" value="${dr.orderNo}" oninput="draftField('orderNo', this.value)"></div>
+      <div><label class="f">Order Date</label><input type="date" value="${dr.orderDate}" oninput="draftField('orderDate', this.value)"></div>
+      <div><label class="f">Requested Delivery Date</label><input type="date" value="${dr.deliveryDate}" oninput="draftField('deliveryDate', this.value)"></div>
+      ${staffFieldHTML(dr)}
+      <div><label class="f">Status</label>
+        <select onchange="onStatusSelect(this.value)">
+          <option value="pending" ${dr.status==='pending'?'selected':''}>Pending</option>
+          <option value="received" ${dr.status==='received'?'selected':''}>Received</option>
+        </select>
+      </div>
+    </div>
+    <label class="f">Sauce Items (unit: kg)</label>
+    ${dr.lines.map((l,i)=>`
+      <div class="orderline">
+        <select onchange="draftLineField(${i},'sauceCode',this.value)">
+          ${sauces.map(s=>`<option value="${s.code}" ${s.code===l.sauceCode?'selected':''}>${s.code} — ${s.name}</option>`).join('')}
+        </select>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" min="0" step="0.1" value="${l.qty}" oninput="draftLineField(${i},'qty',this.value)">
+          <span style="font-size:11.5px; color:var(--muted); white-space:nowrap;">kg</span>
+        </div>
+        <button class="iconbtn" onclick="removeDraftLine(${i})" title="Remove">✕</button>
+      </div>`).join('')}
+    <button class="btn btn-ghost btn-sm" onclick="addDraftLine()">+ Add Item</button>
+    <div style="margin-top:16px; display:flex; gap:10px;">
+      <button class="btn btn-primary" onclick="submitOrder()" ${state.saving?'disabled':''}>${state.saving? 'Saving…' : (dr.editingId? 'Save Changes' : 'Save Order')}</button>
+      <button class="btn btn-ghost" onclick="cancelDraft()">Cancel</button>
+    </div>
+  </div>`;
+}
+
 function pageOrders(){
   const d = state.data;
+  const backendReady = APPS_SCRIPT_URL && APPS_SCRIPT_URL.indexOf("PASTE_YOUR") !== 0;
   return `
-    <div class="pagehead"><div><h1>Branch Orders</h1><div class="sub">All branch orders combined (unit: kg) — pulled from the Orders + OrderLines tabs</div></div></div>
+    <div class="pagehead">
+      <div><h1>Branch Orders</h1><div class="sub">All branch orders combined (unit: kg)</div></div>
+      ${backendReady && !state.draftOrder? `<button class="btn btn-primary" onclick="openNewOrder()">➕ New Order</button>`:''}
+    </div>
+    ${!backendReady? `<div class="banner">Read-only mode: no Apps Script backend connected yet, so new/edited orders can't be saved from here. Edit the <b>Orders</b>/<b>OrderLines</b> tabs directly in Google Sheets instead, or see README.md → "Apps Script Setup" to enable saving from this page.</div>`:''}
+    ${state.draftOrder ? orderForm() : ''}
     <div class="card">
       <h2>Order History (${d.orders.length})</h2>
       ${d.orders.length===0? `<div class="empty"><div class="big">🧾</div>No orders yet</div>` : `
       <div class="tablewrap"><table>
-        <thead><tr><th>Branch</th><th>Order No.</th><th>Order Date</th><th>Delivery Date</th><th>Ordered By</th><th>Items (kg)</th><th class="num">Amount</th><th>Status</th></tr></thead>
+        <thead><tr><th>Branch</th><th>Order No.</th><th>Order Date</th><th>Delivery Date</th><th>Ordered By</th><th>Items (kg)</th><th class="num">Amount</th><th>Status</th><th class="no-print">Actions</th></tr></thead>
         <tbody>${d.orders.map(o=>`
           <tr>
             <td>${o.branch}</td><td class="code">${o.orderNo}</td><td>${o.orderDate}</td><td>${o.deliveryDate}</td><td>${o.orderedBy||'-'}</td>
             <td>${o.lines.map(l=>`${l.sauceCode} ×${fmt(l.qty,1)} kg`).join(', ')}</td>
             <td class="num">${fmt(orderRowTotal(o))}</td>
             <td>${isOrderFulfilled(o)? `<span class="badge ok">Received</span>`:`<span class="badge warn">Pending</span>`}</td>
+            <td class="no-print">
+              ${backendReady? `
+                <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${o.id}')">✏️ Edit</button>
+                ${isOrderFulfilled(o)
+                  ? `<button class="btn btn-ghost btn-sm" onclick="markOrderPending('${o.id}')">↩️ Reopen</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="markOrderReceived('${o.id}')">✅ Received</button>`}
+                <button class="btn btn-danger btn-sm" onclick="deleteOrder('${o.id}')">🗑️</button>` : ''}
+              <button class="btn btn-ghost btn-sm" onclick="printOrderSlip('${o.id}')">🖨️ Order Slip</button>
+              <button class="btn btn-ghost btn-sm" onclick="printDeliveryNote('${o.id}')">🖨️ Delivery Note</button>
+            </td>
           </tr>`).join('')}</tbody>
       </table></div>`}
     </div>
-    <div class="banner">To add or edit orders, edit the <b>Orders</b> and <b>OrderLines</b> tabs directly in Google Sheets, then click "🔄 Refresh Data" in the sidebar.</div>
   `;
+}
+
+// ============================================================
+// PRINT / PDF — order slip, delivery note (client-side only, no backend needed)
+// ============================================================
+const COMPANY = 'Yakyim Thaikitchen — Central Kitchen';
+
+function docHeader(title, docNo){
+  return `<div class="doc-head">
+    <div><h1>${COMPANY}</h1><div style="font-size:12px;color:#555;">Production Planning &amp; Purchasing System</div></div>
+    <div class="meta"><div style="font-size:16px;font-weight:800;">${title}</div><div>No.: ${docNo}</div><div>Printed: ${todayISO()}</div></div>
+  </div>`;
+}
+
+function printOrderSlip(orderId){
+  const o = state.data.orders.find(x=>x.id===orderId);
+  if(!o) return;
+  const lineRows = o.lines.map(l=>{
+    const s = state.data.sauces.find(x=>x.code===l.sauceCode);
+    const price = s&&s.price? s.price : 0;
+    return {code:l.sauceCode, name:s?s.name:l.sauceCode, qty:l.qty, price, amount:price*l.qty};
+  });
+  const total = lineRows.reduce((s,l)=>s+l.amount,0);
+  const html = `
+    ${docHeader('Order Slip', o.orderNo)}
+    <div class="doc-meta-grid">
+      <div><b>Branch:</b> ${o.branch}</div><div><b>Ordered By:</b> ${o.orderedBy||'-'}</div>
+      <div><b>Order Date:</b> ${o.orderDate}</div><div><b>Requested Delivery:</b> ${o.deliveryDate}</div>
+    </div>
+    <table class="doc-table">
+      <thead><tr><th>Code</th><th>Sauce Item</th><th>Qty (kg)</th><th>Price/kg</th><th>Amount (RM)</th></tr></thead>
+      <tbody>${lineRows.map(l=>`<tr><td>${l.code}</td><td>${l.name}</td><td>${fmt(l.qty,1)}</td><td>${fmt(l.price)}</td><td>${fmt(l.amount)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div class="doc-total">Total: RM ${fmt(total)}</div>
+    <div class="doc-sign"><div>Ordered By</div><div>Approved By</div></div>
+  `;
+  showPrint(html, `OrderSlip_${o.orderNo}`);
+}
+
+function printDeliveryNote(orderId){
+  const o = state.data.orders.find(x=>x.id===orderId);
+  if(!o) return;
+  const lineRows = o.lines.map(l=>{
+    const s = state.data.sauces.find(x=>x.code===l.sauceCode);
+    return {code:l.sauceCode, name:s?s.name:l.sauceCode, qty:l.qty};
+  });
+  const html = `
+    ${docHeader('Delivery Note', o.orderNo)}
+    <div class="doc-meta-grid">
+      <div><b>Deliver To:</b> ${o.branch}</div><div><b>Order Ref:</b> ${o.orderNo}</div>
+      <div><b>Delivery Date:</b> ${o.deliveryDate}</div><div><b>Received By:</b> ${o.orderedBy||'-'}</div>
+    </div>
+    <table class="doc-table">
+      <thead><tr><th>Code</th><th>Sauce Item</th><th>Qty Delivered (kg)</th><th>Checked ✓</th></tr></thead>
+      <tbody>${lineRows.map(l=>`<tr><td>${l.code}</td><td>${l.name}</td><td>${fmt(l.qty,1)}</td><td></td></tr>`).join('')}</tbody>
+    </table>
+    <div class="doc-sign"><div>Sent By (Central Kitchen)</div><div>Received By (Branch)</div></div>
+  `;
+  showPrint(html, `DeliveryNote_${o.orderNo}`);
+}
+
+function buildStandaloneDoc(innerHtml, title){
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${title||'Document'}</title>
+<style>
+  body{font-family:'Segoe UI','Noto Sans Thai',Tahoma,sans-serif; color:#20302c; padding:16mm; max-width:900px; margin:0 auto;}
+  .doc-head{display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #0d403a; padding-bottom:12px; margin-bottom:16px;}
+  .doc-head h1{font-size:20px; margin:0; color:#0d403a;}
+  .doc-head .meta{text-align:right; font-size:12px;}
+  .doc-meta-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin-bottom:16px; font-size:12.5px;}
+  .doc-table{width:100%; border-collapse:collapse; margin-bottom:16px;}
+  .doc-table th{background:#f1ede0; border:1px solid #ccc; padding:6px 8px; font-size:11.5px; text-align:left;}
+  .doc-table td{border:1px solid #ccc; padding:6px 8px; font-size:12px;}
+  .doc-total{text-align:right; font-size:15px; font-weight:800; margin-top:8px;}
+  .doc-sign{display:flex; justify-content:space-between; margin-top:50px; font-size:12px;}
+  .doc-sign div{width:40%; text-align:center; border-top:1px solid #333; padding-top:6px;}
+  .print-bar{margin-bottom:20px;}
+  .print-bar button{background:#155e56;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .print-bar .hint{margin-top:8px;font-size:12px;color:#777;}
+  @media print{ .print-bar{display:none;} body{padding:0;} }
+</style></head><body>
+<div class="print-bar">
+  <button onclick="window.print()">🖨️ Print This Document / Save as PDF</button>
+  <div class="hint">Click this button, or press Ctrl+P (Cmd+P on Mac) to print / choose "Save as PDF" in the print dialog</div>
+</div>
+${innerHtml}
+${'<' + 'script>'}window.addEventListener('load',function(){ setTimeout(function(){ try{ window.print(); }catch(e){} }, 350); });${'</' + 'script>'}
+</body></html>`;
+}
+
+function showPrint(html, title){
+  const doc = buildStandaloneDoc(html, title);
+  const blob = new Blob([doc], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  let opened = null;
+  try{ opened = window.open(url, '_blank'); }catch(e){ opened = null; }
+  if(!opened){
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (title || 'document').replace(/[^a-zA-Z0-9_-]+/g,'_') + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('Could not open a new tab — the document was downloaded instead. Open it and print from there.');
+  }
+  setTimeout(()=> URL.revokeObjectURL(url), 60000);
 }
 
 function pageProduction(){
