@@ -109,7 +109,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzbUSPqPicF5FSn
 const TABS = ["RawMaterials","Sauces","BOM","SKU_Ingredients","SKU_Packaging","SKU_Labor","SKU_Overhead","SKU_Portions","Orders","OrderLines","Settings"];
 
 function gvizUrl(sheetName){
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&headers=1`;
 }
 
 // Parses the Google Visualization API response (JSON wrapped in a JS callback)
