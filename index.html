@@ -614,9 +614,10 @@ function orderForm(){
 function pageOrders(){
   const d = state.data;
   const backendReady = APPS_SCRIPT_URL && APPS_SCRIPT_URL.indexOf("PASTE_YOUR") !== 0;
+  const sortedOrders = orderedOrdersLatestFirst();
   return `
     <div class="pagehead">
-      <div><h1>Branch Orders</h1><div class="sub">All branch orders combined (unit: kg)</div></div>
+      <div><h1>Branch Orders</h1><div class="sub">All branch orders combined (unit: kg) — newest first</div></div>
       ${backendReady && !state.draftOrder? `<button class="btn btn-primary" onclick="openNewOrder()">➕ New Order</button>`:''}
     </div>
     ${!backendReady? `<div class="banner">Read-only mode: no Apps Script backend connected yet, so new/edited orders can't be saved from here. Edit the <b>Orders</b>/<b>OrderLines</b> tabs directly in Google Sheets instead, or see README.md → "Apps Script Setup" to enable saving from this page.</div>`:''}
@@ -626,7 +627,7 @@ function pageOrders(){
       ${d.orders.length===0? `<div class="empty"><div class="big">🧾</div>No orders yet</div>` : `
       <div class="tablewrap"><table>
         <thead><tr><th>Branch</th><th>Order No.</th><th>Order Date</th><th>Delivery Date</th><th>Ordered By</th><th>Items (kg)</th><th class="num">Amount</th><th>Status</th><th class="no-print">Actions</th></tr></thead>
-        <tbody>${d.orders.map(o=>`
+        <tbody>${sortedOrders.map(o=>`
           <tr>
             <td>${o.branch}</td><td class="code">${o.orderNo}</td><td>${o.orderDate}</td><td>${o.deliveryDate}</td><td>${o.orderedBy||'-'}</td>
             <td>${o.lines.map(l=>`${l.sauceCode} ×${fmt(l.qty,1)} kg`).join(', ')}</td>
@@ -646,6 +647,20 @@ function pageOrders(){
       </table></div>`}
     </div>
   `;
+}
+
+// Latest-first ordering for the Order History table.
+// Primary key: Order Date (desc). Secondary key: row position in the sheet (desc),
+// so same-day orders show the most recently added one on top, and orders with a
+// blank/unparseable date fall back to sheet position instead of being pushed to the end.
+function orderedOrdersLatestFirst(){
+  const orders = state.data.orders;
+  return orders.map((o, idx)=>({o, idx})).sort((a,b)=>{
+    const da = a.o.orderDate || '';
+    const db = b.o.orderDate || '';
+    if(da !== db) return db.localeCompare(da); // later date first
+    return b.idx - a.idx; // later row (added more recently) first
+  }).map(x=>x.o);
 }
 
 // ============================================================
