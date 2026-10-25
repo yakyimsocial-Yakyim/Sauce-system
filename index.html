@@ -85,6 +85,77 @@ label.f{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin
   #printArea{display:block;position:absolute;left:0;top:0;width:100%;padding:16mm;}
   .no-print{display:none !important;}
 }
+
+/* ============ MOBILE ============ */
+@media (max-width:768px){
+  html,body{-webkit-text-size-adjust:100%;}
+  #root{flex-direction:column;}
+
+  /* Sidebar -> top bar, sticky */
+  .sidebar{width:100%;padding:0;position:sticky;top:0;z-index:50;}
+  .brand{padding:10px 14px;border-bottom:none;padding-right:120px;}
+  .brand-sub{display:none;}
+  .nav{flex-direction:row;margin:0;padding:6px;gap:4px;overflow-x:auto;
+       border-top:1px solid #24443e;-webkit-overflow-scrolling:touch;}
+  .nav-item{flex:1 0 auto;flex-direction:column;gap:2px;width:auto;
+            padding:6px 10px;font-size:11px;white-space:nowrap;justify-content:center;}
+  .nav-icon{font-size:18px;}
+  .sidebar-foot{position:absolute;top:8px;right:10px;padding:0;margin:0;border:none;font-size:0;}
+  .sidebar-foot .btn{width:auto !important;margin:0 !important;padding:6px 10px;font-size:12px;}
+
+  .main{padding:14px 12px;max-width:100%;}
+  .pagehead h1{font-size:18px;}
+  .card{padding:14px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Tables: page scrolls normally; wide tables scroll sideways */
+  .tablewrap{max-height:none !important;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;}
+  table{min-width:620px;}
+  thead th{position:static;}
+
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .kpi{padding:12px;}
+  .kpi-value{font-size:20px;}
+
+  .formgrid{grid-template-columns:1fr;}
+  .orderline{grid-template-columns:1fr 96px 28px;}
+  input[type=text],input[type=number],input[type=date],select{font-size:16px;}
+  .btn{padding:10px 14px;}
+  .btn-sm{padding:7px 10px;}
+
+  .tabs{overflow-x:auto;white-space:nowrap;}
+  .tab-btn{flex:0 0 auto;}
+
+  /* ---------- Orders: one order = one card ---------- */
+  .orders-wrap{border:none !important;overflow:visible !important;}
+  .orders-table{min-width:0;display:block;}
+  .orders-table thead{display:none;}
+  .orders-table tbody{display:block;}
+  .orders-table tbody tr{
+    display:block;background:#fff;border:1px solid var(--line);
+    border-radius:12px;padding:10px 14px;margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .orders-table tbody tr:hover{background:#fff;}
+  .orders-table td{
+    display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+    border:none;padding:5px 0;text-align:right;
+  }
+  .orders-table td::before{
+    content:attr(data-label);flex-shrink:0;text-align:left;
+    color:var(--muted);font-weight:700;font-size:11.5px;
+  }
+  .orders-table td.o-branch{
+    font-size:15px;font-weight:800;color:var(--teal-dk);
+    border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:4px;
+  }
+  .orders-table td.o-branch::before{content:"";}
+  .orders-table td.o-actions{
+    display:flex;flex-wrap:wrap;justify-content:flex-start;gap:6px;
+    border-top:1px solid var(--line);margin-top:6px;padding-top:10px;
+  }
+  .orders-table td.o-actions::before{display:none;}
+  .orders-table td.o-actions .btn{flex:1 1 auto;}
+}
 </style>
 </head>
 <body>
@@ -625,15 +696,19 @@ function pageOrders(){
     <div class="card">
       <h2>Order History (${d.orders.length})</h2>
       ${d.orders.length===0? `<div class="empty"><div class="big">🧾</div>No orders yet</div>` : `
-      <div class="tablewrap"><table>
+      <div class="tablewrap orders-wrap"><table class="orders-table">
         <thead><tr><th>Branch</th><th>Order No.</th><th>Order Date</th><th>Delivery Date</th><th>Ordered By</th><th>Items (kg)</th><th class="num">Amount</th><th>Status</th><th class="no-print">Actions</th></tr></thead>
         <tbody>${sortedOrders.map(o=>`
           <tr>
-            <td>${o.branch}</td><td class="code">${o.orderNo}</td><td>${o.orderDate}</td><td>${o.deliveryDate}</td><td>${o.orderedBy||'-'}</td>
-            <td>${o.lines.map(l=>`${l.sauceCode} ×${fmt(l.qty,1)} kg`).join(', ')}</td>
-            <td class="num">${fmt(orderRowTotal(o))}</td>
-            <td>${isOrderFulfilled(o)? `<span class="badge ok">Received</span>`:`<span class="badge warn">Pending</span>`}</td>
-            <td class="no-print">
+            <td class="o-branch" data-label="Branch">${o.branch}</td>
+            <td class="code" data-label="Order No.">${o.orderNo}</td>
+            <td data-label="Order Date">${o.orderDate}</td>
+            <td data-label="Delivery">${o.deliveryDate}</td>
+            <td data-label="Ordered By">${o.orderedBy||'-'}</td>
+            <td data-label="Items (kg)">${o.lines.map(l=>`${l.sauceCode} ×${fmt(l.qty,1)} kg`).join(', ')}</td>
+            <td class="num" data-label="Amount (RM)">${fmt(orderRowTotal(o))}</td>
+            <td data-label="Status">${isOrderFulfilled(o)? `<span class="badge ok">Received</span>`:`<span class="badge warn">Pending</span>`}</td>
+            <td class="no-print o-actions">
               ${backendReady? `
                 <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${o.id}')">✏️ Edit</button>
                 ${isOrderFulfilled(o)
@@ -723,7 +798,7 @@ function printDeliveryNote(orderId){
 }
 
 function buildStandaloneDoc(innerHtml, title){
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${title||'Document'}</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title||'Document'}</title>
 <style>
   body{font-family:'Segoe UI','Noto Sans Thai',Tahoma,sans-serif; color:#20302c; padding:16mm; max-width:900px; margin:0 auto;}
   .doc-head{display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #0d403a; padding-bottom:12px; margin-bottom:16px;}
@@ -739,6 +814,7 @@ function buildStandaloneDoc(innerHtml, title){
   .print-bar{margin-bottom:20px;}
   .print-bar button{background:#155e56;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
   .print-bar .hint{margin-top:8px;font-size:12px;color:#777;}
+  @media (max-width:600px){ body{padding:12px;} .doc-head{flex-direction:column;gap:10px;} .doc-head .meta{text-align:left;} .doc-meta-grid{grid-template-columns:1fr;} }
   @media print{ .print-bar{display:none;} body{padding:0;} }
 </style></head><body>
 <div class="print-bar">
